@@ -8,6 +8,7 @@ from tkinter import messagebox, ttk
 from CaraOuCoroa.gui import CoinGameApp
 from Roleta.gui import RouletteApp
 from CacaNiquel.gui import SlotMachineApp
+from Truco.gui import TrucoApp
 
 
 def formatar_reais(valor: float) -> str:
@@ -85,12 +86,15 @@ class HubApp:
         botao_slot = ttk.Button(frame, text="Caça-Níquel", command=lambda: self._abrir_jogo("slot"))
         botao_slot.grid(row=7, column=0, sticky="EW", pady=4)
 
+        botao_truco = ttk.Button(frame, text="Truco", command=lambda: self._abrir_jogo("truco"))
+        botao_truco.grid(row=8, column=0, sticky="EW", pady=4)
+
         self.status_info = tk.StringVar(value="Crie uma carteira para começar.")
         ttk.Label(frame, textvariable=self.status_info, wraplength=260).grid(
-            row=8, column=0, columnspan=2, pady=(10, 0)
+            row=9, column=0, columnspan=2, pady=(10, 0)
         )
 
-        ttk.Button(frame, text="Sair", command=self.master.destroy).grid(row=9, column=1, sticky="E", pady=(18, 0))
+        ttk.Button(frame, text="Sair", command=self.master.destroy).grid(row=10, column=1, sticky="E", pady=(18, 0))
 
     def _criar_carteira(self) -> None:
         try:
@@ -131,8 +135,10 @@ class HubApp:
             app = CoinGameApp(janela)
         elif jogo == "roleta":
             app = RouletteApp(janela)
-        else:
+        elif jogo == "slot":
             app = SlotMachineApp(janela)
+        else:
+            app = TrucoApp(janela)
 
         app.set_wallet(self.wallet, lambda w=self.wallet: w.saldo)
         janela.protocol("WM_DELETE_WINDOW", lambda: self._fechar_jogo(janela))
