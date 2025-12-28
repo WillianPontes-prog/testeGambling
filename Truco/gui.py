@@ -15,9 +15,7 @@ def formatar_reais(valor: float) -> str:
 
 class CarteiraProtocol(Protocol):
     saldo: float
-
     def depositar(self, valor: float) -> None: ...
-
     def retirar(self, valor: float) -> bool: ...
 
 
@@ -28,6 +26,7 @@ class TrucoApp:
         self.master = master
         self.master.title("Truco")
         self.master.resizable(False, False)
+        self.master.configure(bg="#1f1f2e")
 
         self.game: TrucoGame | None = None
         self.wallet: CarteiraProtocol | None = None
@@ -41,120 +40,145 @@ class TrucoApp:
     def _montar_interface(self) -> None:
         estilo = ttk.Style()
         estilo.theme_use("clam")
+        
+        # Estilos
+        estilo.configure("TFrame", background="#1f1f2e")
+        estilo.configure("TLabel", background="#1f1f2e", foreground="#ffffff", font=("Segoe UI", 10))
+        estilo.configure("TButton", font=("Segoe UI", 10, "bold"), background="#3d3d5c", foreground="#ffffff", borderwidth=0)
+        estilo.map("TButton", background=[("active", "#4d4d70")])
+        estilo.configure("Action.TButton", background="#00ff88", foreground="#0f0f1a")
+        estilo.map("Action.TButton", background=[("active", "#00cc6a")])
+        estilo.configure("Danger.TButton", background="#ff6b6b", foreground="#ffffff")
+        estilo.map("Danger.TButton", background=[("active", "#ff4444")])
 
-        frame = ttk.Frame(self.master, padding=20)
-        frame.grid(row=0, column=0)
+        main_frame = ttk.Frame(self.master, padding=10)
+        main_frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Truco", font=("Segoe UI", 18, "bold")).grid(
-            row=0, column=0, columnspan=4, pady=(0, 10)
+        # --- Topo: Placar e Info ---
+        top_frame = ttk.Frame(main_frame)
+        top_frame.pack(fill="x", pady=(0, 10))
+
+        # Placar da Partida
+        self.match_var = tk.StringVar(value=f"VOCÊ 0 x 0 ADVERSÁRIO")
+        lbl_placar = tk.Label(
+            top_frame, textvariable=self.match_var, 
+            font=("Segoe UI", 16, "bold"), bg="#0f0f1a", fg="#00ff88",
+            padx=10, pady=5, relief="sunken", bd=2
         )
+        lbl_placar.pack(side="top", fill="x")
+        
+        # Info da Mão (Pontos da rodada, valor truco)
+        info_hand_frame = ttk.Frame(top_frame)
+        info_hand_frame.pack(fill="x", pady=5)
+        
+        self.pontos_var = tk.StringVar(value="Mão: 0 x 0")
+        ttk.Label(info_hand_frame, textvariable=self.pontos_var, font=("Segoe UI", 11)).pack(side="left")
+        
+        self.multiplicador_var = tk.StringVar(value="Valor: 1x")
+        ttk.Label(info_hand_frame, textvariable=self.multiplicador_var, font=("Segoe UI", 11, "bold"), foreground="#ffd700").pack(side="right")
 
-        ttk.Label(frame, text="Saldo inicial:").grid(row=1, column=0, sticky="W")
-        self.saldo_inicial_var = tk.StringVar(value="250,00")
-        self.saldo_inicial_entry = ttk.Entry(frame, textvariable=self.saldo_inicial_var, width=14)
-        self.saldo_inicial_entry.grid(row=1, column=1, sticky="W")
-        self.iniciar_btn = ttk.Button(frame, text="Iniciar", command=self._iniciar_jogo)
-        self.iniciar_btn.grid(row=1, column=2, padx=(10, 0))
 
-        self.saldo_var = tk.StringVar(value="Saldo: R$0,00")
-        ttk.Label(frame, textvariable=self.saldo_var, font=("Segoe UI", 12, "bold")).grid(
-            row=2, column=0, columnspan=4, pady=(6, 15)
-        )
+        # --- Mesa de Jogo (Verde) ---
+        self.table_frame = tk.Frame(main_frame, bg="#2e7d32", bd=5, relief="ridge", height=300)
+        self.table_frame.pack(fill="both", expand=True, pady=10)
+        self.table_frame.pack_propagate(False) # Manter tamanho fixo se possível
 
-        ttk.Label(frame, text="Aposta:").grid(row=3, column=0, sticky="W")
-        self.aposta_var = tk.StringVar(value="20,00")
-        self.aposta_entry = ttk.Entry(frame, textvariable=self.aposta_var, width=10, state="disabled")
-        self.aposta_entry.grid(row=3, column=1, sticky="W")
+        # Área do Adversário (Cartas viradas)
+        self.opponent_area = tk.Frame(self.table_frame, bg="#2e7d32")
+        self.opponent_area.pack(side="top", pady=10)
+        self.opponent_cards_labels = []
+        for _ in range(3):
+            lbl = tk.Label(
+                self.opponent_area, text="🂠", font=("Segoe UI Symbol", 30),
+                bg="#2e7d32", fg="#1b5e20"
+            )
+            lbl.pack(side="left", padx=5)
+            self.opponent_cards_labels.append(lbl)
 
-        self.pedir_truco_btn = ttk.Button(frame, text="Pedir Truco", command=self._pedir_truco, state="disabled")
-        self.pedir_truco_btn.grid(row=3, column=2, padx=(10, 0))
+        # Área Central (Cartas jogadas e Vira)
+        center_area = tk.Frame(self.table_frame, bg="#2e7d32")
+        center_area.pack(expand=True)
 
-        self.multiplicador_var = tk.StringVar(value="Multiplicador: 1x")
-        ttk.Label(frame, textvariable=self.multiplicador_var).grid(row=3, column=3, sticky="E", padx=(15, 0))
-
-        self.match_var = tk.StringVar(value=f"Partida: Você 0 x 0 (meta {self._match_goal} pontos)")
-        ttk.Label(frame, textvariable=self.match_var, font=("Segoe UI", 11, "bold")).grid(
-            row=4, column=0, columnspan=4, pady=(8, 4)
-        )
-
-        self.pontos_var = tk.StringVar(value="Placar da mão: Você 0 x 0 Adversário")
-        ttk.Label(frame, textvariable=self.pontos_var, font=("Segoe UI", 11)).grid(
-            row=5, column=0, columnspan=4, pady=(0, 6)
-        )
-
-        info_frame = ttk.Frame(frame)
-        info_frame.grid(row=6, column=0, columnspan=4, pady=(4, 8), sticky="EW")
-        info_frame.columnconfigure(2, weight=1)
-        ttk.Label(info_frame, text="Vira:", font=("Segoe UI", 11, "bold")).grid(row=0, column=0, sticky="W")
+        # Vira
+        tk.Label(center_area, text="VIRA", bg="#2e7d32", fg="#a5d6a7", font=("Segoe UI", 8)).grid(row=0, column=0)
         self.vira_card_label = tk.Label(
-            info_frame,
-            text="--",
-            font=("Segoe UI Symbol", 20, "bold"),
-            width=4,
-            height=1,
-            bg="#202b3a",
-            fg="#f1f5f9",
-            bd=4,
-            relief="raised",
+            center_area, text="🂠", font=("Segoe UI Symbol", 24),
+            bg="#2e7d32", fg="#ffffff", width=3
         )
-        self.vira_card_label.grid(row=0, column=1, padx=(8, 14))
-        self.manilha_var = tk.StringVar(value="Manilha: --")
-        ttk.Label(info_frame, textvariable=self.manilha_var).grid(row=0, column=2, sticky="W")
+        self.vira_card_label.grid(row=1, column=0, padx=20)
 
-        self.player_last_card_var = tk.StringVar(value="Sua última carta: --")
-        ttk.Label(frame, textvariable=self.player_last_card_var).grid(
-            row=7, column=0, columnspan=4, sticky="W"
-        )
+        # Cartas Jogadas (Adversário vs Jogador)
+        play_area = tk.Frame(center_area, bg="#2e7d32")
+        play_area.grid(row=1, column=1, padx=20)
+        
+        self.ai_played_label = tk.Label(play_area, text="", font=("Segoe UI Symbol", 24), bg="#2e7d32", fg="#ffffff")
+        self.ai_played_label.pack(side="top", pady=5)
+        
+        self.player_played_label = tk.Label(play_area, text="", font=("Segoe UI Symbol", 24), bg="#2e7d32", fg="#ffffff")
+        self.player_played_label.pack(side="bottom", pady=5)
 
-        self.ai_last_card_var = tk.StringVar(value="Carta do adversário: --")
-        ttk.Label(frame, textvariable=self.ai_last_card_var).grid(
-            row=8, column=0, columnspan=4, sticky="W", pady=(0, 6)
-        )
 
-        self.cartas_frame = ttk.Frame(frame, padding=10)
-        self.cartas_frame.grid(row=9, column=0, columnspan=4)
+        # Área do Jogador (Botões das cartas)
+        self.player_area = tk.Frame(self.table_frame, bg="#2e7d32")
+        self.player_area.pack(side="bottom", pady=10)
+        
         self.carta_buttons: list[tk.Button] = []
         for idx in range(3):
             btn = tk.Button(
-                self.cartas_frame,
-                text="--",
-                width=4,
-                height=2,
-                font=("Segoe UI Symbol", 20, "bold"),
-                bg="#202b3a",
-                fg="#f1f5f9",
-                activebackground="#2a3b52",
-                activeforeground="#ffffff",
-                relief="raised",
-                bd=4,
-                command=lambda i=idx: self._jogar_carta(i),
+                self.player_area, text="--", width=4, height=2,
+                font=("Segoe UI Symbol", 16, "bold"),
+                bg="#f1f5f9", fg="#000000",
+                relief="raised", bd=3,
+                command=lambda i=idx: self._jogar_carta(i)
             )
-            btn.grid(row=0, column=idx, padx=8)
+            btn.pack(side="left", padx=10)
             btn.configure(state="disabled")
             self.carta_buttons.append(btn)
 
-        self.status_var = tk.StringVar(value="Defina o saldo inicial e clique em Iniciar.")
-        ttk.Label(frame, textvariable=self.status_var, wraplength=420).grid(
-            row=10, column=0, columnspan=4, pady=(15, 10)
-        )
 
-        botoes_frame = ttk.Frame(frame)
-        botoes_frame.grid(row=11, column=0, columnspan=4, pady=(10, 0))
-        self.nova_mao_btn = ttk.Button(botoes_frame, text="Nova mão", command=self._nova_mao, state="disabled")
-        self.nova_mao_btn.grid(row=0, column=0, padx=(0, 10))
-        self.nova_partida_btn = ttk.Button(
-            botoes_frame, text="Nova partida", command=self._nova_partida, state="disabled"
-        )
-        self.nova_partida_btn.grid(row=0, column=1, padx=(0, 10))
-        ttk.Button(botoes_frame, text="Sair", command=self.master.destroy).grid(row=0, column=2)
+        # --- Controles Inferiores ---
+        bottom_frame = ttk.Frame(main_frame)
+        bottom_frame.pack(fill="x", pady=(10, 0))
+
+        # Linha 1: Ações de Jogo
+        actions_frame = ttk.Frame(bottom_frame)
+        actions_frame.pack(fill="x", pady=(0, 10))
+        
+        self.pedir_truco_btn = ttk.Button(actions_frame, text="PEDIR TRUCO!", command=self._pedir_truco, state="disabled", style="Danger.TButton")
+        self.pedir_truco_btn.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        self.nova_mao_btn = ttk.Button(actions_frame, text="Nova Mão", command=self._nova_mao, state="disabled")
+        self.nova_mao_btn.pack(side="left", fill="x", expand=True, padx=5)
+
+        # Linha 2: Configuração e Status
+        config_frame = ttk.Frame(bottom_frame)
+        config_frame.pack(fill="x")
+
+        ttk.Label(config_frame, text="Aposta:").pack(side="left")
+        self.aposta_var = tk.StringVar(value="20,00")
+        self.aposta_entry = ttk.Entry(config_frame, textvariable=self.aposta_var, width=8)
+        self.aposta_entry.pack(side="left", padx=5)
+
+        self.iniciar_btn = ttk.Button(config_frame, text="Iniciar Jogo", command=self._iniciar_jogo, style="Action.TButton")
+        self.iniciar_btn.pack(side="left", padx=5)
+
+        self.saldo_var = tk.StringVar(value="Saldo: R$0,00")
+        ttk.Label(config_frame, textvariable=self.saldo_var, font=("Segoe UI", 10, "bold")).pack(side="right")
+
+        # Status Bar
+        self.status_var = tk.StringVar(value="Bem-vindo ao Truco.")
+        lbl_status = tk.Label(main_frame, textvariable=self.status_var, bg="#0f0f1a", fg="#ffffff", font=("Segoe UI", 9), pady=4)
+        lbl_status.pack(fill="x", pady=(10, 0))
+        
+        # Saldo Inicial (Hidden logic mostly, but needed for init)
+        self.saldo_inicial_var = tk.StringVar(value="250,00")
+
 
     def set_wallet(self, wallet: CarteiraProtocol, saldo_factory: Callable[[], float]) -> None:
         self.wallet = wallet
         self._saldo_factory = saldo_factory
-        self.saldo_inicial_entry.configure(state="disabled")
-        self.saldo_inicial_var.set(f"{wallet.saldo:.2f}".replace(".", ","))
         self._atualizar_saldo_compartilhado()
-        self.status_var.set("Saldo compartilhado carregado. Clique em Iniciar para jogar.")
+        self.status_var.set("Saldo carregado. Clique em Iniciar Jogo.")
         self._atualizar_match_points()
 
     def _iniciar_jogo(self) -> None:
@@ -168,10 +192,11 @@ class TrucoApp:
             try:
                 saldo = self._converter_para_float(self.saldo_inicial_var.get())
             except ValueError:
-                messagebox.showerror("Saldo inválido", "Informe um número válido para o saldo inicial.")
+                messagebox.showerror("Erro", "Saldo inválido.")
                 return
+        
         if saldo is None or saldo <= 0:
-            messagebox.showerror("Saldo inválido", "O saldo precisa ser maior que zero.")
+            messagebox.showerror("Erro", "Saldo deve ser positivo.")
             return
 
         aposta = self._obter_aposta()
@@ -186,16 +211,15 @@ class TrucoApp:
         try:
             self.game.iniciar_partida(aposta)
         except (ValueError, RuntimeError) as exc:
-            messagebox.showerror("Não foi possível iniciar", str(exc))
+            messagebox.showerror("Erro", str(exc))
             return
 
         self._aposta_base = aposta
         self._mao_ativa = True
         self._atualizar_interface_mao()
-        self.status_var.set("Mão iniciada! Escolha uma carta para jogar.")
+        self.status_var.set("Sua vez! Escolha uma carta.")
         self._habilitar_controles(True)
         self.nova_mao_btn.configure(state="disabled")
-        self.nova_partida_btn.configure(state="disabled")
         self.pedir_truco_btn.configure(state="normal")
         self.iniciar_btn.configure(state="disabled")
         self._limpar_cartas_jogadas()
@@ -205,22 +229,23 @@ class TrucoApp:
         try:
             aposta = self._converter_para_float(self.aposta_var.get())
         except ValueError:
-            messagebox.showerror("Aposta inválida", "Informe um número válido para a aposta.")
+            messagebox.showerror("Erro", "Aposta inválida.")
             return None
         if aposta <= 0:
-            messagebox.showwarning("Aposta inválida", "A aposta precisa ser maior que zero.")
+            messagebox.showwarning("Aposta", "Aposta deve ser positiva.")
             return None
+        
+        saldo_disponivel = 0.0
         if self.wallet:
             saldo_disponivel = self.wallet.saldo
         elif self.game:
             saldo_disponivel = self.game.saldo
         else:
-            try:
-                saldo_disponivel = self._converter_para_float(self.saldo_inicial_var.get())
-            except ValueError:
-                saldo_disponivel = 0
+             # Fallback
+             saldo_disponivel = 1000.0 
+
         if aposta > saldo_disponivel:
-            messagebox.showwarning("Aposta inválida", "A aposta não pode ultrapassar o saldo atual.")
+            messagebox.showwarning("Saldo", "Saldo insuficiente.")
             return None
         return aposta
 
@@ -230,59 +255,56 @@ class TrucoApp:
         try:
             resultado = self.game.jogar_carta(indice)
         except (RuntimeError, IndexError) as exc:
-            messagebox.showerror("Ação inválida", str(exc))
+            messagebox.showerror("Erro", str(exc))
             return
+            
+        # Atualizar mesa visualmente
+        self.player_played_label.configure(text=resultado.player_card.label(), fg=self._get_card_color(resultado.player_card.label()))
+        self.ai_played_label.configure(text=resultado.ai_card.label(), fg=self._get_card_color(resultado.ai_card.label()))
+
         hand_finished = resultado.hand_finished
         self._repor_cartas(habilitar=not hand_finished)
-        self.player_last_card_var.set(
-            f"Sua última carta: {resultado.player_card.describe()} ({resultado.player_card.label()})"
-        )
-        self.ai_last_card_var.set(
-            f"Carta do adversário: {resultado.ai_card.describe()} ({resultado.ai_card.label()})"
-        )
-        self.pontos_var.set(
-            f"Placar da mão: Você {resultado.player_points} x {resultado.ai_points} Adversário"
-        )
+        
+        self.pontos_var.set(f"Mão: {resultado.player_points} x {resultado.ai_points}")
+        
         if resultado.round_winner == "player":
-            self.status_var.set("Você levou a rodada!")
+            self.status_var.set("Você venceu a rodada!")
         elif resultado.round_winner == "ai":
-            self.status_var.set("O adversário venceu a rodada.")
+            self.status_var.set("Adversário venceu a rodada.")
         else:
-            self.status_var.set("Empate na rodada. Vale a próxima.")
+            self.status_var.set("Empate!")
 
         self._atualizar_multiplicador(resultado.multiplier)
         self._atualizar_saldo(resultado.saldo)
         self._atualizar_match_points(resultado.player_match_points, resultado.ai_match_points)
 
         if hand_finished:
-            mensagem_final = "A mão terminou empatada."
-            if resultado.hand_winner == "player":
-                mensagem_final = (
-                    f"Você venceu a mão! Ganhou {formatar_reais(self._aposta_base * resultado.multiplier)}."
-                )
-            elif resultado.hand_winner == "ai":
-                mensagem_final = (
-                    f"O adversário venceu a mão. Perdeu {formatar_reais(self._aposta_base * resultado.multiplier)}."
-                )
-            self.status_var.set(mensagem_final)
-            self._mao_ativa = False
-            self._habilitar_controles(False)
-            self.pedir_truco_btn.configure(state="disabled")
-            if self.wallet:
-                self._sincronizar_carteira()
-            else:
-                self._atualizar_saldo(self.game.saldo if self.game else resultado.saldo)
+            self._finalizar_mao(resultado)
 
-            if resultado.match_winner:
-                vencedor_texto = "Você" if resultado.match_winner == "player" else "O adversário"
-                self.status_var.set(
-                    f"{mensagem_final} {vencedor_texto} alcançou {self._match_goal} pontos na partida!"
-                )
-                self.nova_mao_btn.configure(state="disabled")
-                self.nova_partida_btn.configure(state="normal")
-                self.iniciar_btn.configure(state="normal")
-            else:
-                self.nova_mao_btn.configure(state="normal")
+    def _finalizar_mao(self, resultado):
+        msg = "Mão empatada."
+        if resultado.hand_winner == "player":
+            msg = f"VOCÊ VENCEU A MÃO! (+{formatar_reais(self._aposta_base * resultado.multiplier)})"
+        elif resultado.hand_winner == "ai":
+            msg = f"ADVERSÁRIO VENCEU A MÃO. (-{formatar_reais(self._aposta_base * resultado.multiplier)})"
+        
+        self.status_var.set(msg)
+        self._mao_ativa = False
+        self._habilitar_controles(False)
+        self.pedir_truco_btn.configure(state="disabled")
+        
+        if self.wallet:
+            self._sincronizar_carteira()
+        else:
+            self._atualizar_saldo(self.game.saldo if self.game else resultado.saldo)
+
+        if resultado.match_winner:
+            vencedor = "VOCÊ" if resultado.match_winner == "player" else "ADVERSÁRIO"
+            messagebox.showinfo("Fim de Jogo", f"{vencedor} venceu a partida!")
+            self.iniciar_btn.configure(state="normal", text="Nova Partida")
+            self.game = None # Reset game logic
+        else:
+            self.nova_mao_btn.configure(state="normal")
 
     def _pedir_truco(self) -> None:
         if not self.game:
@@ -290,33 +312,28 @@ class TrucoApp:
         resultado = self.game.pedir_truco()
         self._atualizar_multiplicador(self.game.multiplicador)
         self._atualizar_match_points()
+        
         if resultado.folded:
             self.status_var.set(resultado.message)
             self._mao_ativa = False
             self.pedir_truco_btn.configure(state="disabled")
             self._habilitar_controles(False)
             self._repor_cartas(habilitar=False)
-            self.player_last_card_var.set("Sua última carta: --")
-            self.ai_last_card_var.set("Carta do adversário: correu do Truco.")
-            if self.game:
-                self.pontos_var.set(
-                    f"Placar da mão: Você {self.game.player_points} x {self.game.ai_points} Adversário"
-                )
+            
+            # Adversário correu
+            self.ai_played_label.configure(text="CORREU", fg="#ffffff", font=("Segoe UI", 12))
+            
             if self.wallet:
                 self._sincronizar_carteira()
-            else:
-                self._atualizar_saldo(self.game.saldo)
+            
             if self.game and self.game.partida_encerrada():
-                vencedor = "Você" if self.game.vencedor_partida() == "player" else "O adversário"
-                self.status_var.set(
-                    f"{resultado.message} {vencedor} alcançou {self._match_goal} pontos na partida!"
-                )
-                self.nova_mao_btn.configure(state="disabled")
-                self.nova_partida_btn.configure(state="normal")
-                self.iniciar_btn.configure(state="normal")
+                messagebox.showinfo("Fim de Jogo", "Partida encerrada!")
+                self.iniciar_btn.configure(state="normal", text="Nova Partida")
+                self.game = None
             else:
                 self.nova_mao_btn.configure(state="normal")
             return
+            
         self.status_var.set(resultado.message)
         if not resultado.accepted:
             self.pedir_truco_btn.configure(state="disabled")
@@ -324,157 +341,98 @@ class TrucoApp:
     def _nova_mao(self) -> None:
         if not self.game:
             return
-        if self.game.partida_encerrada():
-            messagebox.showinfo(
-                "Partida encerrada",
-                "A partida já terminou. Clique em Nova partida ou Iniciar para recomeçar.",
-            )
-            return
-        if self.wallet and self.wallet.saldo <= 0:
-            messagebox.showwarning("Saldo esgotado", "Adicione saldo no hub para continuar jogando.")
-            return
+        
         aposta = self._obter_aposta()
         if aposta is None:
             return
+            
         try:
             self.game.iniciar_partida(aposta)
-        except (ValueError, RuntimeError) as exc:
-            messagebox.showerror("Aposta inválida", str(exc))
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
             return
+            
         self._aposta_base = aposta
         self._mao_ativa = True
         self._repor_cartas()
         self._atualizar_interface_mao()
         self._habilitar_controles(True)
         self.pedir_truco_btn.configure(state="normal")
-        self.nova_partida_btn.configure(state="disabled")
         self.iniciar_btn.configure(state="disabled")
         self._limpar_cartas_jogadas()
-        self.status_var.set("Nova mão iniciada! Boa sorte.")
-
-    def _nova_partida(self) -> None:
-        if self.wallet and self._saldo_factory:
-            saldo = self._saldo_factory()
-            if saldo <= 0:
-                messagebox.showwarning("Saldo insuficiente", "Adicione saldo no hub para reiniciar a partida.")
-                return
-        else:
-            try:
-                saldo = self._converter_para_float(self.saldo_inicial_var.get())
-            except ValueError:
-                messagebox.showerror("Saldo inválido", "Informe um número válido para reiniciar a partida.")
-                return
-            if saldo <= 0:
-                messagebox.showerror("Saldo inválido", "O saldo precisa ser maior que zero.")
-                return
-
-        if self.game is None:
-            self.game = TrucoGame(saldo)
-        else:
-            self.game.reiniciar_partida(saldo)
-
-        self._mao_ativa = False
-        self._habilitar_controles(False)
-        self._repor_cartas(habilitar=False)
-        self._limpar_cartas_jogadas()
-        self._atualizar_match_points()
-        self._atualizar_vira("--")
-        self.manilha_var.set("Manilha: --")
-        self.pontos_var.set("Placar da mão: Você 0 x 0 Adversário")
-        self._atualizar_saldo(self.game.saldo)
-
-        sugestao = min(max(self.game.saldo * 0.1, 10.0), self.game.saldo)
-        self.aposta_var.set(self._formatar_entrada(sugestao))
-
-        self.pedir_truco_btn.configure(state="disabled")
-        self.nova_mao_btn.configure(state="disabled")
-        self.nova_partida_btn.configure(state="disabled")
-        self.iniciar_btn.configure(state="normal")
-        self.status_var.set("Partida reiniciada! Ajuste a aposta e clique em Iniciar para jogar.")
+        self.status_var.set("Nova mão! Sua vez.")
 
     def _habilitar_controles(self, habilitar: bool) -> None:
-        if habilitar:
-            self.aposta_entry.configure(state="disabled")
-        else:
-            self.aposta_entry.configure(state="normal")
+        state = "normal" if habilitar else "disabled"
+        self.aposta_entry.configure(state="disabled" if habilitar else "normal") # Inverso
 
     def _repor_cartas(self, habilitar: bool = True) -> None:
         if not self.game:
-            for botao in self.carta_buttons:
-                botao.configure(command=lambda: None)
-                self._estilizar_botao_carta(botao, "--", False)
             return
 
+        # Atualizar cartas do jogador
         for idx, carta in enumerate(self.game.player_hand):
-            botao = self.carta_buttons[idx]
-            botao.configure(command=lambda i=idx: self._jogar_carta(i))
-            self._estilizar_botao_carta(botao, carta.label(), habilitar)
-
+            if idx < len(self.carta_buttons):
+                botao = self.carta_buttons[idx]
+                botao.configure(command=lambda i=idx: self._jogar_carta(i))
+                self._estilizar_botao_carta(botao, carta.label(), habilitar)
+        
+        # Esconder botões extras se a mão diminuiu (não acontece no truco normal mas ok)
         for idx in range(len(self.game.player_hand), len(self.carta_buttons)):
-            botao = self.carta_buttons[idx]
-            botao.configure(command=lambda: None)
-            self._estilizar_botao_carta(botao, "--", False)
+            self._estilizar_botao_carta(self.carta_buttons[idx], "", False)
+            
+        # Atualizar cartas do oponente (visual apenas - quantidade)
+        # No truco a gente não vê quantas cartas o oponente tem na mão facilmente na GUI simples,
+        # mas podemos esconder os ícones se ele jogou.
+        # Simplificação: manter os 3 ícones sempre por enquanto.
 
     def _estilizar_botao_carta(self, botao: tk.Button, texto: str, habilitado: bool) -> None:
-        vermelho = any(simbolo in texto for simbolo in ("♥", "♦"))
-        fg = "#ff8a8a" if vermelho else "#f1f5f9"
-        bg = "#202b3a" if habilitado else "#141c27"
+        if not texto:
+            botao.configure(text="", state="disabled", bg="#2e7d32", relief="flat") # Esconde
+            return
+            
+        fg = self._get_card_color(texto)
+        bg = "#f1f5f9" if habilitado else "#cfd8dc"
         botao.configure(
-            text=texto,
-            fg=fg,
-            bg=bg,
-            activeforeground="#ffffff",
-            activebackground="#2a3b52",
-            relief="raised" if habilitado else "sunken",
-            bd=4 if habilitado else 2,
+            text=texto, fg=fg, bg=bg,
             state="normal" if habilitado else "disabled",
+            relief="raised" if habilitado else "sunken"
         )
 
+    def _get_card_color(self, texto: str) -> str:
+        if any(s in texto for s in ("♥", "♦")):
+            return "#d32f2f" # Vermelho
+        return "#000000" # Preto
+
     def _limpar_cartas_jogadas(self) -> None:
-        self.player_last_card_var.set("Sua última carta: --")
-        self.ai_last_card_var.set("Carta do adversário: --")
-
-    def _atualizar_vira(self, texto: str) -> None:
-        exibicao = texto if texto else "--"
-        vermelho = any(simbolo in exibicao for simbolo in ("♥", "♦"))
-        fg = "#ff8a8a" if vermelho else "#f1f5f9"
-        self.vira_card_label.configure(text=exibicao, fg=fg)
-
-    def _atualizar_match_points(self, jogador: int | None = None, adversario: int | None = None) -> None:
-        if jogador is None or adversario is None:
-            if self.game:
-                jogador = self.game.player_match_points
-                adversario = self.game.ai_match_points
-            else:
-                jogador = adversario = 0
-        texto = f"Partida: Você {jogador} x {adversario} (meta {self._match_goal} pontos)"
-        if self.game and self.game.partida_encerrada():
-            vencedor = self.game.vencedor_partida()
-            if vencedor == "player":
-                texto += " - Você venceu!"
-            elif vencedor == "ai":
-                texto += " - Adversário venceu."
-        self.match_var.set(texto)
+        self.player_played_label.configure(text="")
+        self.ai_played_label.configure(text="")
 
     def _atualizar_interface_mao(self) -> None:
         if not self.game:
             return
         self._repor_cartas()
         estado = self.game.estado_mao()
-        vira = estado["vira"] or "--"
-        manilha = estado["manilha"] or "--"
-        self._atualizar_vira(vira)
-        self.manilha_var.set(f"Manilha: {manilha}")
-        self.pontos_var.set(
-            f"Placar da mão: Você {estado['player_points']} x {estado['ai_points']} Adversário"
-        )
+        
+        # Vira
+        vira = estado["vira"] or "?"
+        self.vira_card_label.configure(text=vira, fg=self._get_card_color(vira))
+        
+        self.pontos_var.set(f"Mão: {estado['player_points']} x {estado['ai_points']}")
         self._atualizar_match_points(estado["player_match_points"], estado["ai_match_points"])
         self._atualizar_multiplicador(self.game.multiplicador)
         self._atualizar_saldo(self.game.saldo)
-        self._limpar_cartas_jogadas()
+
+    def _atualizar_match_points(self, jogador: int | None = None, adversario: int | None = None) -> None:
+        if self.game:
+            jogador = self.game.player_match_points
+            adversario = self.game.ai_match_points
+        else:
+            jogador = adversario = 0
+        self.match_var.set(f"VOCÊ {jogador} x {adversario} ADVERSÁRIO")
 
     def _atualizar_multiplicador(self, multiplicador: int) -> None:
-        self.multiplicador_var.set(f"Multiplicador: {multiplicador}x")
+        self.multiplicador_var.set(f"VALENDO: {multiplicador}x")
 
     def _atualizar_saldo(self, saldo: float) -> None:
         self.saldo_var.set(f"Saldo: {formatar_reais(saldo)}")
@@ -493,32 +451,14 @@ class TrucoApp:
     def _atualizar_saldo_compartilhado(self) -> None:
         if not self.wallet:
             return
-        saldo_atual = self.wallet.saldo
-        self.saldo_var.set(f"Saldo: {formatar_reais(saldo_atual)}")
-        try:
-            aposta = self._converter_para_float(self.aposta_var.get())
-        except ValueError:
-            aposta = 0.0
-        if saldo_atual <= 0:
-            self.aposta_var.set("0,00")
-        elif aposta > saldo_atual:
-            self.aposta_var.set(self._formatar_entrada(saldo_atual))
+        self.saldo_var.set(f"Saldo: {formatar_reais(self.wallet.saldo)}")
 
     @staticmethod
     def _converter_para_float(texto: str) -> float:
         limpo = texto.replace("R$", "").strip().replace(".", "").replace(",", ".")
         return float(limpo)
 
-    @staticmethod
-    def _formatar_entrada(valor: float) -> str:
-        return f"{valor:.2f}".replace(".", ",")
-
-
 def run_app() -> None:
     raiz = tk.Tk()
     app = TrucoApp(raiz)
     raiz.mainloop()
-
-
-if __name__ == "__main__":
-    run_app()

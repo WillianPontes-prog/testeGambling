@@ -48,84 +48,135 @@ class HubApp:
         self.master = master
         self.master.title("Arcade de Apostas")
         self.master.resizable(False, False)
+        self.master.configure(bg="#1f1f2e")
 
         self.wallet: Wallet | None = None
 
         self._montar_interface()
 
     def _montar_interface(self) -> None:
-        frame = ttk.Frame(self.master, padding=20)
-        frame.grid(row=0, column=0)
+        estilo = ttk.Style()
+        estilo.theme_use("clam")
+        
+        estilo.configure("TFrame", background="#1f1f2e")
+        estilo.configure("TLabel", background="#1f1f2e", foreground="#ffffff", font=("Segoe UI", 10))
+        estilo.configure("TButton", font=("Segoe UI", 10, "bold"), background="#3d3d5c", foreground="#ffffff", borderwidth=0)
+        estilo.map("TButton", background=[("active", "#4d4d70")])
+        estilo.configure("Action.TButton", background="#00ff88", foreground="#0f0f1a", font=("Segoe UI", 11, "bold"))
+        estilo.map("Action.TButton", background=[("active", "#00cc6a")])
+        
+        # Container Principal
+        main_frame = ttk.Frame(self.master, padding=30)
+        main_frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Arcade de Apostas", font=("Segoe UI", 18, "bold")).grid(
-            row=0, column=0, columnspan=2, pady=(0, 15)
-        )
+        # Header
+        header_frame = ttk.Frame(main_frame)
+        header_frame.pack(fill="x", pady=(0, 20))
+        
+        tk.Label(
+            header_frame, text="CASINO HUB", 
+            font=("Segoe UI", 28, "bold"), bg="#1f1f2e", fg="#00ff88"
+        ).pack()
+        
+        tk.Label(
+            header_frame, text="Escolha seu jogo e boa sorte!", 
+            font=("Segoe UI", 12), bg="#1f1f2e", fg="#aaaaaa"
+        ).pack(pady=(5, 0))
 
-        ttk.Label(frame, text="Saldo inicial da carteira:").grid(row=1, column=0, sticky="W")
+        # Área da Carteira
+        wallet_frame = tk.Frame(main_frame, bg="#2a2a3d", bd=2, relief="groove", padx=15, pady=15)
+        wallet_frame.pack(fill="x", pady=(0, 25))
+
+        tk.Label(wallet_frame, text="SUA CARTEIRA", font=("Segoe UI", 10, "bold"), bg="#2a2a3d", fg="#aaaaaa").pack(anchor="w")
+        
+        self.wallet_info = tk.StringVar(value="R$ --")
+        tk.Label(wallet_frame, textvariable=self.wallet_info, font=("Segoe UI", 24, "bold"), bg="#2a2a3d", fg="#ffffff").pack(anchor="w", pady=5)
+
+        controls_frame = tk.Frame(wallet_frame, bg="#2a2a3d")
+        controls_frame.pack(fill="x", pady=(5, 0))
+        
+        tk.Label(controls_frame, text="Depósito Inicial:", bg="#2a2a3d", fg="#ffffff").pack(side="left")
         self.saldo_var = tk.StringVar(value="300,00")
-        self.saldo_entry = ttk.Entry(frame, textvariable=self.saldo_var, width=14)
-        self.saldo_entry.grid(row=1, column=1, sticky="W")
+        entry = ttk.Entry(controls_frame, textvariable=self.saldo_var, width=10)
+        entry.pack(side="left", padx=10)
+        
+        ttk.Button(controls_frame, text="Carregar / Adicionar", command=self._criar_carteira, style="Action.TButton").pack(side="left")
 
-        ttk.Button(frame, text="Criar/Atualizar Carteira", command=self._criar_carteira).grid(
-            row=2, column=0, columnspan=2, pady=(10, 15)
-        )
 
-        self.wallet_info = tk.StringVar(value="Saldo atual: --")
-        ttk.Label(frame, textvariable=self.wallet_info, font=("Segoe UI", 12, "bold")).grid(
-            row=3, column=0, columnspan=2, pady=(0, 15)
-        )
+        # Grid de Jogos
+        games_frame = ttk.Frame(main_frame)
+        games_frame.pack(fill="both", expand=True)
+        
+        # Configurar grid 2x2
+        games_frame.columnconfigure(0, weight=1)
+        games_frame.columnconfigure(1, weight=1)
+        games_frame.rowconfigure(0, weight=1)
+        games_frame.rowconfigure(1, weight=1)
 
-        ttk.Label(frame, text="Escolha um jogo:").grid(row=4, column=0, columnspan=2, sticky="W")
+        self._criar_botao_jogo(games_frame, "Cara ou Coroa", "🪙", "cara", 0, 0)
+        self._criar_botao_jogo(games_frame, "Roleta", "🎡", "roleta", 0, 1)
+        self._criar_botao_jogo(games_frame, "Caça-Níquel", "🎰", "slot", 1, 0)
+        self._criar_botao_jogo(games_frame, "Truco", "🃏", "truco", 1, 1)
 
-        botao_cara = ttk.Button(frame, text="Cara ou Coroa", command=lambda: self._abrir_jogo("cara"))
-        botao_cara.grid(row=5, column=0, sticky="EW", pady=4)
-
-        botao_roleta = ttk.Button(frame, text="Roleta", command=lambda: self._abrir_jogo("roleta"))
-        botao_roleta.grid(row=6, column=0, sticky="EW", pady=4)
-
-        botao_slot = ttk.Button(frame, text="Caça-Níquel", command=lambda: self._abrir_jogo("slot"))
-        botao_slot.grid(row=7, column=0, sticky="EW", pady=4)
-
-        botao_truco = ttk.Button(frame, text="Truco", command=lambda: self._abrir_jogo("truco"))
-        botao_truco.grid(row=8, column=0, sticky="EW", pady=4)
-
+        # Footer
+        ttk.Button(main_frame, text="Sair do Casino", command=self.master.destroy).pack(side="bottom", anchor="e", pady=(20, 0))
+        
         self.status_info = tk.StringVar(value="Crie uma carteira para começar.")
-        ttk.Label(frame, textvariable=self.status_info, wraplength=260).grid(
-            row=9, column=0, columnspan=2, pady=(10, 0)
-        )
+        tk.Label(main_frame, textvariable=self.status_info, bg="#1f1f2e", fg="#aaaaaa", font=("Segoe UI", 9)).pack(side="bottom", pady=10)
 
-        ttk.Button(frame, text="Sair", command=self.master.destroy).grid(row=10, column=1, sticky="E", pady=(18, 0))
+    def _criar_botao_jogo(self, parent, nome, icone, comando_key, row, col):
+        """Cria um card de jogo."""
+        frame = tk.Frame(parent, bg="#3d3d5c", bd=0, highlightthickness=1, highlightbackground="#4d4d70")
+        frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+        
+        # Hover effect
+        def on_enter(e): frame.config(bg="#4d4d70")
+        def on_leave(e): frame.config(bg="#3d3d5c")
+        frame.bind("<Enter>", on_enter)
+        frame.bind("<Leave>", on_leave)
+        
+        # Conteúdo clicável
+        def on_click(e): self._abrir_jogo(comando_key)
+        
+        lbl_icon = tk.Label(frame, text=icone, font=("Segoe UI Emoji", 32), bg="#3d3d5c", fg="#ffffff")
+        lbl_icon.pack(expand=True, pady=(15, 5))
+        lbl_icon.bind("<Button-1>", on_click)
+        lbl_icon.bind("<Enter>", lambda e: on_enter(None)) # Propagate hover
+        
+        lbl_name = tk.Label(frame, text=nome, font=("Segoe UI", 12, "bold"), bg="#3d3d5c", fg="#ffffff")
+        lbl_name.pack(pady=(0, 15))
+        lbl_name.bind("<Button-1>", on_click)
+        lbl_name.bind("<Enter>", lambda e: on_enter(None))
+
+        frame.bind("<Button-1>", on_click)
 
     def _criar_carteira(self) -> None:
         try:
             saldo = self._converter_para_float(self.saldo_var.get())
         except ValueError:
-            messagebox.showerror("Saldo inválido", "Informe um número válido para o saldo inicial.")
+            messagebox.showerror("Erro", "Saldo inválido.")
             return
         if saldo <= 0:
-            messagebox.showerror("Saldo inválido", "O saldo precisa ser positivo.")
+            messagebox.showerror("Erro", "Saldo deve ser positivo.")
             return
 
         if self.wallet is None:
             self.wallet = Wallet(saldo)
-            self.status_info.set("Carteira criada! Escolha um jogo para começar.")
+            self.status_info.set("Carteira criada!")
         else:
             diferenca = saldo - self.wallet.saldo
             if diferenca > 0:
                 self.wallet.depositar(diferenca)
             elif diferenca < 0:
                 if not self.wallet.retirar(-diferenca):
-                    messagebox.showwarning(
-                        "Saldo insuficiente",
-                        "Não é possível reduzir para menos que o saldo atual. Faça novas apostas para diminuir.",
-                    )
+                    messagebox.showwarning("Erro", "Não é possível reduzir abaixo do saldo atual.")
                     return
             self.status_info.set("Carteira atualizada!")
         self._atualizar_label_saldo()
 
     def _abrir_jogo(self, jogo: str) -> None:
         if self.wallet is None:
-            messagebox.showwarning("Carteira necessária", "Crie a carteira antes de jogar.")
+            messagebox.showwarning("Atenção", "Crie a carteira antes de jogar.")
             return
 
         janela = tk.Toplevel(self.master)
@@ -144,9 +195,8 @@ class HubApp:
         janela.protocol("WM_DELETE_WINDOW", lambda: self._fechar_jogo(janela))
 
     def _fechar_jogo(self, janela: tk.Toplevel) -> None:
-        if messagebox.askyesno("Fechar jogo", "Deseja fechar este jogo e voltar ao hub?"):
+        if messagebox.askyesno("Sair", "Voltar ao Hub?"):
             janela.destroy()
-            self.status_info.set(f"Saldo atual da carteira: {formatar_reais(self.wallet.saldo)}")
             self._atualizar_label_saldo()
 
     @staticmethod
@@ -156,9 +206,9 @@ class HubApp:
 
     def _atualizar_label_saldo(self) -> None:
         if self.wallet:
-            self.wallet_info.set(f"Saldo atual: {formatar_reais(self.wallet.saldo)}")
+            self.wallet_info.set(f"{formatar_reais(self.wallet.saldo)}")
         else:
-            self.wallet_info.set("Saldo atual: --")
+            self.wallet_info.set("R$ --")
 
 
 def run_app() -> None:

@@ -16,7 +16,7 @@ SYMBOL_EMOJIS = {
     "PLUM": "🍇",
     "BELL": "🔔",
     "STAR": "⭐",
-    "BAR": "🟥",
+    "BAR": "💎", # Changed BAR to Diamond for better visual
     "SEVEN": "7️⃣",
 }
 
@@ -27,9 +27,7 @@ def formatar_reais(valor: float) -> str:
 
 class CarteiraProtocol(Protocol):
     saldo: float
-
     def depositar(self, valor: float) -> None: ...
-
     def retirar(self, valor: float) -> bool: ...
 
 
@@ -40,6 +38,7 @@ class SlotMachineApp:
         self.master = master
         self.master.title("Caça-Níquel")
         self.master.resizable(False, False)
+        self.master.configure(bg="#1f1f2e")
 
         self.game: SlotMachine | None = None
         self._animando = False
@@ -50,7 +49,7 @@ class SlotMachineApp:
         self.wallet: CarteiraProtocol | None = None
         self._saldo_factory: Callable[[], float] | None = None
         self._reel_states: list[tuple[str, str, str]] = [
-            ("⬛", "⬜", "⬛") for _ in range(3)
+            ("❓", "❓", "❓") for _ in range(3)
         ]
 
         self._montar_interface()
@@ -58,105 +57,117 @@ class SlotMachineApp:
     def _montar_interface(self) -> None:
         estilo = ttk.Style()
         estilo.theme_use("clam")
+        
+        estilo.configure("TFrame", background="#1f1f2e")
+        estilo.configure("TLabel", background="#1f1f2e", foreground="#ffffff", font=("Segoe UI", 10))
+        estilo.configure("TButton", font=("Segoe UI", 10, "bold"), background="#3d3d5c", foreground="#ffffff", borderwidth=0)
+        estilo.map("TButton", background=[("active", "#4d4d70")])
+        estilo.configure("Action.TButton", background="#ffcc00", foreground="#0f0f1a", font=("Segoe UI", 12, "bold"))
+        estilo.map("Action.TButton", background=[("active", "#ffaa00")])
 
-        frame = ttk.Frame(self.master, padding=20)
-        frame.grid(row=0, column=0)
+        main_frame = ttk.Frame(self.master, padding=20)
+        main_frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Caça-Níquel", font=("Segoe UI", 16, "bold")).grid(
-            row=0, column=0, columnspan=3, pady=(0, 15)
+        # Título Estilizado
+        title_lbl = tk.Label(
+            main_frame, text="🎰 SUPER SLOTS 🎰", 
+            font=("Segoe UI", 24, "bold"), bg="#1f1f2e", fg="#ffcc00"
         )
+        title_lbl.pack(pady=(0, 20))
 
-        ttk.Label(frame, text="Saldo inicial:").grid(row=1, column=0, sticky="W")
-        self.saldo_inicial_var = tk.StringVar(value="200,00")
-        self.saldo_inicial_entry = ttk.Entry(frame, textvariable=self.saldo_inicial_var, width=12)
-        self.saldo_inicial_entry.grid(row=1, column=1, sticky="W")
-        ttk.Button(frame, text="Iniciar", command=self._iniciar_jogo).grid(row=1, column=2, padx=(10, 0))
+        # --- Máquina Visual ---
+        machine_frame = tk.Frame(main_frame, bg="#2c3e50", bd=10, relief="ridge", padx=15, pady=15)
+        machine_frame.pack()
 
-        self.saldo_var = tk.StringVar(value="Saldo: R$0,00")
-        ttk.Label(frame, textvariable=self.saldo_var, font=("Segoe UI", 12, "bold")).grid(
-            row=2, column=0, columnspan=3, pady=(10, 15)
-        )
-
-        self.reels_frame = ttk.Frame(frame, padding=10, style="Reels.TFrame")
-        self.reels_frame.grid(row=3, column=0, columnspan=3)
-        estilo.configure("Reels.TFrame", background="#101520")
-        estilo.configure("Reel.TFrame", background="#0f141d")
+        # Display dos Reels
+        reels_container = tk.Frame(machine_frame, bg="#000000", bd=5, relief="sunken")
+        reels_container.pack()
 
         self.reel_columns: list[list[tk.Label]] = []
         for idx in range(3):
-            coluna_frame = ttk.Frame(self.reels_frame, padding=4, style="Reel.TFrame")
-            coluna_frame.grid(row=0, column=idx, padx=6)
+            coluna_frame = tk.Frame(reels_container, bg="#ffffff", padx=2, pady=0)
+            coluna_frame.pack(side="left", padx=2)
 
             coluna_labels: list[tk.Label] = []
             for linha in range(3):
-                destaque = linha == 1
+                # Linha do meio é a linha de pagamento
+                is_payline = (linha == 1)
+                bg_color = "#ffffff"
+                fg_color = "#000000"
+                
                 label = tk.Label(
                     coluna_frame,
-                    text="⬛",
-                    font=("Segoe UI Emoji", 30),
+                    text="❓",
+                    font=("Segoe UI Emoji", 40),
                     width=2,
                     height=1,
-                    bg="#1f2a3a" if destaque else "#141b26",
-                    fg="#e0e5ec" if destaque else "#9aa4b3",
-                    relief="raised" if destaque else "sunken",
-                    bd=4 if destaque else 2,
-                    padx=8,
-                    pady=4,
+                    bg=bg_color,
+                    fg=fg_color,
+                    relief="flat",
+                    bd=0
                 )
-                label.grid(row=linha, column=0, pady=2)
+                label.pack(pady=1)
                 coluna_labels.append(label)
             self.reel_columns.append(coluna_labels)
 
-        ttk.Label(frame, text="Aposta:").grid(row=4, column=0, sticky="W", pady=(15, 0))
+        # Indicador de Linha de Pagamento
+        payline_indicator = tk.Frame(machine_frame, bg="#ff0000", height=4)
+        payline_indicator.place(relx=0, rely=0.5, relwidth=1, anchor="w")
+        # (Isso pode ficar feio se não alinhar perfeitamente, vamos simplificar com setas laterais)
+        payline_indicator.destroy() # Remove previous attempt
+        
+        # Setas indicando o meio
+        tk.Label(machine_frame, text="▶", bg="#2c3e50", fg="#ff0000", font=("Arial", 20)).place(x=-5, y=110)
+        tk.Label(machine_frame, text="◀", bg="#2c3e50", fg="#ff0000", font=("Arial", 20)).place(x=330, y=110) # Ajustar X conforme necessário
+
+
+        # --- Painel de Controle ---
+        control_panel = ttk.Frame(main_frame, padding=(0, 20, 0, 0))
+        control_panel.pack(fill="x")
+
+        # Info Saldo
+        info_frame = ttk.Frame(control_panel)
+        info_frame.pack(fill="x", pady=5)
+        
+        self.saldo_var = tk.StringVar(value="Saldo: R$0,00")
+        ttk.Label(info_frame, textvariable=self.saldo_var, font=("Segoe UI", 14, "bold"), foreground="#00ff88").pack()
+
+        # Aposta e Botão
+        action_frame = ttk.Frame(control_panel)
+        action_frame.pack(fill="x", pady=10)
+
+        ttk.Label(action_frame, text="Aposta:").pack(side="left")
         self.aposta_var = tk.StringVar(value="10,00")
-        self.aposta_entry = ttk.Entry(frame, textvariable=self.aposta_var, width=12, state="disabled")
-        self.aposta_entry.grid(row=4, column=1, sticky="W", pady=(15, 0))
+        self.aposta_entry = ttk.Entry(action_frame, textvariable=self.aposta_var, width=10)
+        self.aposta_entry.pack(side="left", padx=5)
 
-        self.spin_button = ttk.Button(frame, text="Girar", command=self._girar, state="disabled")
-        self.spin_button.grid(row=4, column=2, padx=(10, 0), pady=(15, 0))
+        self.spin_button = ttk.Button(action_frame, text="GIRAR!", command=self._girar, state="disabled", style="Action.TButton")
+        self.spin_button.pack(side="left", padx=20, fill="x", expand=True)
 
-        self.status_var = tk.StringVar(
-            value="Defina o saldo inicial e clique em Iniciar para começar a jogar."
-        )
-        ttk.Label(frame, textvariable=self.status_var, wraplength=340).grid(
-            row=5, column=0, columnspan=3, pady=(15, 0)
-        )
+        # Status
+        self.status_var = tk.StringVar(value="Insira saldo para jogar.")
+        status_lbl = tk.Label(main_frame, textvariable=self.status_var, bg="#1f1f2e", fg="#aaaaaa", font=("Segoe UI", 10), wraplength=350)
+        status_lbl.pack(pady=5)
 
-        ttk.Button(frame, text="Sair", command=self.master.destroy).grid(row=6, column=2, sticky="E", pady=(20, 0))
+        # Config Inicial (Hidden)
+        self.saldo_inicial_var = tk.StringVar(value="200,00")
+
 
     def set_wallet(self, wallet: CarteiraProtocol, saldo_factory: Callable[[], float]) -> None:
         self.wallet = wallet
         self._saldo_factory = saldo_factory
-        self.saldo_inicial_entry.configure(state="disabled")
-        self.saldo_inicial_var.set(f"{wallet.saldo:.2f}".replace(".", ","))
         self._atualizar_saldo_compartilhado()
-        self.status_var.set("Saldo compartilhado carregado. Clique em Iniciar para jogar.")
+        self.status_var.set("Pronto para jogar!")
+        self._iniciar_jogo_auto() # Auto-init se tiver carteira
 
-    def _iniciar_jogo(self) -> None:
-        if self._animando:
-            return
+    def _iniciar_jogo_auto(self) -> None:
         if self.wallet and self._saldo_factory:
             saldo = self._saldo_factory()
-            if saldo <= 0:
-                messagebox.showwarning("Carteira vazia", "Adicione saldo na tela principal para continuar jogando.")
-                return
-            self.game = SlotMachine(saldo)
-        else:
-            try:
-                saldo = self._converter_para_float(self.saldo_inicial_var.get())
-            except ValueError:
-                messagebox.showerror("Saldo inválido", "Informe um número válido para o saldo inicial.")
-                return
-            if saldo <= 0:
-                messagebox.showerror("Saldo inválido", "O saldo inicial precisa ser maior que zero.")
-                return
-            self.game = SlotMachine(saldo)
-        self._atualizar_saldo()
-        self._habilitar_controles(True)
-        self.status_var.set("Saldo definido! Escolha sua aposta e clique em Girar.")
-        self._resetar_reels()
-        sugestao = min(10.0, self.game.saldo)
-        self.aposta_var.set(self._formatar_entrada(sugestao))
+            if saldo > 0:
+                self.game = SlotMachine(saldo)
+                self._atualizar_saldo()
+                self._habilitar_controles(True)
+                self._resetar_reels()
 
     def _habilitar_controles(self, habilitar: bool) -> None:
         estado = "normal" if habilitar else "disabled"
@@ -164,18 +175,25 @@ class SlotMachineApp:
         self.spin_button.configure(state=estado)
 
     def _girar(self) -> None:
+        if self.game is None:
+            # Tentar iniciar se não tiver jogo (caso sem carteira)
+            try:
+                saldo = float(self.saldo_inicial_var.get().replace(",", "."))
+                self.game = SlotMachine(saldo)
+            except:
+                pass
+
         if self.game is None or self._animando:
             return
+            
         try:
             aposta = self._converter_para_float(self.aposta_var.get())
         except ValueError:
-            messagebox.showerror("Aposta inválida", "Informe um número válido para a aposta.")
+            messagebox.showerror("Erro", "Aposta inválida.")
             return
+            
         if not self.game.pode_apostar(aposta):
-            messagebox.showwarning(
-                "Aposta inválida",
-                "A aposta precisa ser maior que zero e não pode ultrapassar o saldo atual.",
-            )
+            messagebox.showwarning("Saldo", "Saldo insuficiente.")
             return
 
         self._ultima_aposta = aposta
@@ -188,7 +206,7 @@ class SlotMachineApp:
         self._habilitar_controles(False)
         self.status_var.set("Girando...")
         self._passos_reel = [0, 0, 0]
-        self._limites_reel = [random.randint(24, 32), random.randint(32, 40), random.randint(40, 50)]
+        self._limites_reel = [random.randint(15, 25), random.randint(25, 35), random.randint(35, 45)]
         self._rotacionar()
 
     def _rotacionar(self) -> None:
@@ -200,12 +218,19 @@ class SlotMachineApp:
             if self._passos_reel[idx] < self._limites_reel[idx]:
                 completo = False
                 prestes_a_parar = self._passos_reel[idx] + 1 >= self._limites_reel[idx]
+                
                 if prestes_a_parar and self._resultado_pendente is not None:
-                    topo, _, base = self._reel_states[idx]
+                    # Preparar parada no símbolo correto
+                    topo, _, base = self._reel_states[idx] # Mantém contexto visual anterior? Não, gera aleatório
+                    # Precisamos garantir que o símbolo do meio seja o resultado
                     simbolo_final = self._resultado_pendente.symbols[idx]
-                    strip = (topo, SYMBOL_EMOJIS.get(simbolo_final, "⬜"), base)
+                    # Gerar vizinhos aleatórios
+                    vizinho_cima = random.choice(list(SYMBOL_EMOJIS.values()))
+                    vizinho_baixo = random.choice(list(SYMBOL_EMOJIS.values()))
+                    strip = (vizinho_cima, SYMBOL_EMOJIS.get(simbolo_final, "❓"), vizinho_baixo)
                 else:
                     strip = self._gerar_strip_animacao()
+                
                 self._atualizar_coluna(idx, coluna, strip)
                 self._passos_reel[idx] += 1
 
@@ -213,8 +238,9 @@ class SlotMachineApp:
             self._finalizar_spin()
             return
 
+        # Velocidade variável (efeito de parada)
         progresso = max(self._passos_reel) / max(self._limites_reel)
-        delay = int(30 + progresso * 90)
+        delay = int(50 + progresso * 100)
         self.master.after(delay, self._rotacionar)
 
     def _finalizar_spin(self) -> None:
@@ -223,74 +249,66 @@ class SlotMachineApp:
             self._habilitar_controles(True)
             return
 
+        # Garantir visual final correto
         for idx, (coluna, simbolo) in enumerate(zip(self.reel_columns, self._resultado_pendente.symbols)):
-            topo, _, base = self._reel_states[idx]
-            centro = SYMBOL_EMOJIS.get(simbolo, "⬜")
-            self._atualizar_coluna(idx, coluna, (topo, centro, base))
+            # Recuperar o que está na tela
+            current_strip = self._reel_states[idx]
+            # O meio já deve estar certo pela lógica do _rotacionar, mas vamos forçar
+            topo, _, base = current_strip
+            centro = SYMBOL_EMOJIS.get(simbolo, "❓")
+            self._atualizar_coluna(idx, coluna, (topo, centro, base), highlight=True)
 
         self._mostrar_resultado(self._resultado_pendente)
         self._resultado_pendente = None
 
         if self.game and self.game.saldo > 0:
             self._habilitar_controles(True)
-            sugestao = min(self.game.saldo, max(self.game.saldo * 0.1, self._ultima_aposta))
-            self.aposta_var.set(self._formatar_entrada(sugestao))
         else:
             self._habilitar_controles(False)
-            self.status_var.set("Saldo esgotado. Defina um novo saldo inicial para continuar jogando.")
+            self.status_var.set("Saldo esgotado.")
 
     def _mostrar_resultado(self, resultado: SpinResult) -> None:
         if resultado.venceu:
             ganho_liquido = resultado.ganho - resultado.aposta
-            if ganho_liquido <= 0:
-                mensagem = (
-                    f"Você recuperou {formatar_reais(resultado.ganho)}. "
-                    f"Saldo: {formatar_reais(self.game.saldo if self.game else 0)}."
-                )
-            else:
-                mensagem = (
-                    f"Você ganhou {formatar_reais(resultado.ganho)}! "
-                    f"Lucro líquido: {formatar_reais(ganho_liquido)}. "
-                    f"Saldo: {formatar_reais(self.game.saldo if self.game else 0)}."
-                )
+            msg = f"VENCEU! Ganhou {formatar_reais(resultado.ganho)}!"
+            self.status_var.set(msg)
+            # Efeito visual de vitória (piscar?) - simplificado aqui
         else:
-            mensagem = (
-                f"Sem combinações. Você perdeu {formatar_reais(self._ultima_aposta)}. "
-                f"Saldo: {formatar_reais(self.game.saldo if self.game else 0)}."
-            )
+            self.status_var.set(f"Tente novamente. Perdeu {formatar_reais(self._ultima_aposta)}.")
 
-        self.status_var.set(mensagem)
         self._atualizar_saldo()
         if self.wallet and self.game:
             self._sincronizar_carteira()
 
     def _resetar_reels(self) -> None:
-        self._reel_states = [("⬛", "⬜", "⬛") for _ in range(3)]
-        for coluna in self.reel_columns:
-            for idx, lbl in enumerate(coluna):
-                simbolo = "⬛" if idx != 1 else "⬜"
-                cor = "#9aa4b3" if idx != 1 else "#f0f3f8"
-                bg = "#141b26" if idx != 1 else "#1f2a3a"
-                borda = 2 if idx != 1 else 4
-                estilo = "sunken" if idx != 1 else "raised"
-                lbl.configure(text=simbolo, fg=cor, bg=bg, bd=borda, relief=estilo)
+        self._reel_states = [("❓", "❓", "❓") for _ in range(3)]
+        for idx, coluna in enumerate(self.reel_columns):
+            self._atualizar_coluna(idx, coluna, ("❓", "❓", "❓"))
 
     def _gerar_strip_animacao(self) -> tuple[str, str, str]:
-        simbolos = random.choices(SYMBOL_NAMES, k=3)
-        return tuple(SYMBOL_EMOJIS.get(nome, "⬜") for nome in simbolos)
+        simbolos = random.choices(list(SYMBOL_EMOJIS.values()), k=3)
+        return (simbolos[0], simbolos[1], simbolos[2])
 
-    def _atualizar_coluna(self, indice: int, coluna: list[tk.Label], strip: tuple[str, str, str]) -> None:
+    def _atualizar_coluna(self, indice: int, coluna: list[tk.Label], strip: tuple[str, str, str], highlight: bool = False) -> None:
         topo, centro, base = strip
-        coluna[0].configure(text=topo, fg="#b4bdc9", bg="#141b26", relief="sunken", bd=2)
-        coluna[1].configure(text=centro, fg="#f7f9fb", bg="#1f2a3a", relief="raised", bd=4)
-        coluna[2].configure(text=base, fg="#b4bdc9", bg="#141b26", relief="sunken", bd=2)
+        
+        # Cores normais
+        bg_normal = "#ffffff"
+        fg_normal = "#cccccc" # Desfocado
+        
+        # Cores destaque (linha do meio)
+        bg_highlight = "#fff8e1" if highlight else "#ffffff"
+        fg_highlight = "#000000"
+        
+        coluna[0].configure(text=topo, fg=fg_normal, bg=bg_normal)
+        coluna[1].configure(text=centro, fg=fg_highlight, bg=bg_highlight)
+        coluna[2].configure(text=base, fg=fg_normal, bg=bg_normal)
+        
         self._reel_states[indice] = strip
 
     def _atualizar_saldo(self) -> None:
         if self.game:
             self.saldo_var.set(f"Saldo: {formatar_reais(self.game.saldo)}")
-        else:
-            self.saldo_var.set("Saldo: R$0,00")
 
     def _sincronizar_carteira(self) -> None:
         if not (self.wallet and self.game):
@@ -305,26 +323,12 @@ class SlotMachineApp:
     def _atualizar_saldo_compartilhado(self) -> None:
         if not self.wallet:
             return
-        saldo_atual = self.wallet.saldo
-        self.saldo_var.set(f"Saldo: {formatar_reais(saldo_atual)}")
-        try:
-            aposta_atual = self._converter_para_float(self.aposta_var.get())
-        except ValueError:
-            aposta_atual = 0.0
-        if saldo_atual <= 0:
-            self.aposta_var.set("0,00")
-        elif aposta_atual > saldo_atual:
-            self.aposta_var.set(self._formatar_entrada(saldo_atual))
+        self.saldo_var.set(f"Saldo: {formatar_reais(self.wallet.saldo)}")
 
     @staticmethod
     def _converter_para_float(texto: str) -> float:
         limpo = texto.replace("R$", "").strip().replace(".", "").replace(",", ".")
         return float(limpo)
-
-    @staticmethod
-    def _formatar_entrada(valor: float) -> str:
-        return f"{valor:.2f}".replace(".", ",")
-
 
 def run_app() -> None:
     raiz = tk.Tk()
